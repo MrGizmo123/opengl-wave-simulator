@@ -15,42 +15,42 @@ uniform sampler2D obstacles;
 
 uniform float timestep;
 uniform float time;
+uniform int size;
 
-const int size = 1024;
-const int offset = 1;
+
 const float k = 1;
 const float A = 1;
 const float pulse_time = 1000;
 
 void main()
 {
-    ivec2 tex_coords = ivec2(out_tex_coords * size);
+    float offset = 1.0/float(size);
     
-    float my_old_pos = texelFetch(old_pos, tex_coords, 0).r;
-    float my_old_vel = texelFetch(old_vel, tex_coords, 0).r;
-    float my_old_acc = texelFetch(old_acc, tex_coords, 0).r;
+    float my_old_pos = texture(old_pos, out_tex_coords).r;
+    float my_old_vel = texture(old_vel, out_tex_coords).r;
+    float my_old_acc = texture(old_acc, out_tex_coords).r;
 
     new_pos = my_old_pos + timestep * my_old_vel;
     new_vel = my_old_vel + timestep * my_old_acc;
 
-    ivec2 top = ivec2(tex_coords.x, tex_coords.y + offset);
-    ivec2 right = ivec2(tex_coords.x + offset, tex_coords.y);
-    ivec2 bottom = ivec2(tex_coords.x, tex_coords.y - offset);
-    ivec2 left = ivec2(tex_coords.x - offset, tex_coords.y);
+    vec2 top =vec2(out_tex_coords.x, out_tex_coords.y + offset);
+    vec2 right = vec2(out_tex_coords.x + offset, out_tex_coords.y);
+    vec2 bottom = vec2(out_tex_coords.x, out_tex_coords.y - offset);
+    vec2 left = vec2(out_tex_coords.x - offset, out_tex_coords.y);
 
-    float top_pos = texelFetch(old_pos, top, 0).r;
-    float right_pos = texelFetch(old_pos, right, 0).r;
-    float bottom_pos = texelFetch(old_pos, bottom, 0).r;
-    float left_pos = texelFetch(old_pos, left, 0).r;
+    float top_pos = texture(old_pos, top).r;
+    float right_pos = texture(old_pos, right).r;
+    float bottom_pos = texture(old_pos, bottom).r;
+    float left_pos = texture(old_pos, left).r;
     
-    new_acc = k * (top_pos + right_pos + bottom_pos + left_pos - 4 * my_old_pos);
+    new_acc = 0.97 * k * (top_pos + right_pos + bottom_pos + left_pos - 4 * my_old_pos);
 
 
-    if (texelFetch(sources, tex_coords, 0).r > 0.5)
+    if (texture(sources, out_tex_coords).r > 0.5)
     {
 	if (time < pulse_time)
 	{
-	    new_pos = A * (sin(time) + sin(2 * time));
+	    new_pos = A * (sin(time));
 	    new_vel = my_old_vel;
 	    new_acc = my_old_acc;
 	}
@@ -62,7 +62,7 @@ void main()
 	}
     }
 
-    if (texelFetch(obstacles, tex_coords, 0).r > 0.5)
+    if (texture(obstacles, out_tex_coords).r > 0.5)
     {
 	new_pos = 0;
 	new_vel = my_old_vel;

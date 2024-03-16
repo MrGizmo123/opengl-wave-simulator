@@ -368,6 +368,7 @@ void step(struct FBO* src,
     bind_fbo_to_uniforms(src, sources_texture, obstacles_texture, shader);
     glUniform1f(glGetUniformLocation(shader, "timestep"), timestep);
     glUniform1f(glGetUniformLocation(shader, "time"), time);
+    glUniform1i(glGetUniformLocation(shader, "size"), WIDTH);
 
     
     glBindVertexArray(vao);
@@ -446,10 +447,16 @@ int main(int argc, char** argv)
 		    "vertex.glsl",
 		    "quad_fragment.glsl");
 
+    glUseProgram(quad_shader);
+    glUniform1i(glGetUniformLocation(quad_shader, "size"), WIDTH);
+
     unsigned int wave_shader;
     compile_shaders(&wave_shader,
 		    "vertex.glsl",
 		    "wave_fragment.glsl");
+
+    glUseProgram(wave_shader);
+    glUniform1i(glGetUniformLocation(wave_shader, "size"), WIDTH);
 
     /* fbo code */
     struct FBO fbo1;
@@ -457,24 +464,34 @@ int main(int argc, char** argv)
 
     struct FBO fbo2;
     generate_fbo(&fbo2);
-
-    //int data;
-    //glGetIntegerv(GL_MAX_DRAW_BUFFERS, &data);
-    // printf("max render attachments: %d", data);
-
+    
     /* time code */
 
     float time = 0.0f;
-    float timestep = 0.001f;
+    float timestep = 0.0005f;
     
     /* main loop */
     
     while (!glfwWindowShouldClose(window))
     {
 	
-	step(&fbo1, &fbo2, sources_texture, obstacles_texture, wave_shader, vao.vao_id, timestep, time);
+	step(&fbo1,
+	     &fbo2,
+	     sources_texture,
+	     obstacles_texture,
+	     wave_shader,
+	     vao.vao_id,
+	     timestep,
+	     time);
 
-	step(&fbo2, &fbo1, sources_texture, obstacles_texture, wave_shader, vao.vao_id, timestep, time);
+	step(&fbo2,
+	     &fbo1,
+	     sources_texture,
+	     obstacles_texture,
+	     wave_shader,
+	     vao.vao_id,
+	     timestep,
+	     time);
 
 	glClearColor(0.6f, 0.2f, 0.2f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
