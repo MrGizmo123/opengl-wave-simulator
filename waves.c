@@ -17,6 +17,9 @@
 #define WIDTH 1024
 #define HEIGHT 1024
 
+#define CYCLES_PER_FRAME 50
+#define SHOULD_ANIMATE 0
+
 unsigned int vertex_shader;
 unsigned int fragment_shader;
 
@@ -58,8 +61,6 @@ char* read_file(char* filename)
 
     /* printf("file contents: %s", string); */
 }
-
-
 
 static void key_callback(GLFWwindow* win, int key, int scancode, int action, int mods)
 {
@@ -235,7 +236,6 @@ void load_texture(unsigned int* texture, char* path)
 	    GL_RGBA,
 	    GL_UNSIGNED_BYTE,
 	    data);
-	//glGenerateMipmap(GL_TEXTURE_2D);
     }
     else
     {
@@ -379,6 +379,24 @@ void step(struct FBO* src,
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void saveScreenshotToFile(char* filename, int windowWidth, int windowHeight) {    
+    const int numberOfPixels = windowWidth * windowHeight * 3;
+    unsigned char pixels[numberOfPixels];
+
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_FRONT);
+    glReadPixels(0, 0, windowWidth, windowHeight, GL_BGR_EXT, GL_UNSIGNED_BYTE, pixels);
+
+    FILE *outputFile = fopen(filename, "w");
+    short header[] = {0, 2, 0, 0, 0, 0, (short) windowWidth, (short) windowHeight, 24};
+
+    fwrite(&header, sizeof(header), 1, outputFile);
+    fwrite(pixels, numberOfPixels, 1, outputFile);
+    fclose(outputFile);
+
+    printf("Wrote %s\n", filename);
+}
+
 int main(int argc, char** argv)
 {
     
@@ -468,7 +486,9 @@ int main(int argc, char** argv)
     /* time code */
 
     float time = 0.0f;
-    float timestep = 0.0005f;
+    float timestep = 0.001f;
+
+    int frames = 0;
     
     /* main loop */
     
@@ -499,7 +519,14 @@ int main(int argc, char** argv)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, fbo1.pos_texture);
 
+        glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacles_texture);
+
 	glUseProgram(quad_shader);
+
+	glUniform1i(glGetUniformLocation(quad_shader, "image"), 0);
+	glUniform1i(glGetUniformLocation(quad_shader, "scene"), 1);
+	
 	glBindVertexArray(vao.vao_id);
 	
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -509,6 +536,15 @@ int main(int argc, char** argv)
 	glfwPollEvents();
 
 	time += timestep;
+	frames++;
+
+	if (SHOULD_ANIMATE && frames % CYCLES_PER_FRAME == 0)
+	{
+	    char file[128];
+	    sprintf(file, "output/test2/frame%05d.tga", frames / CYCLES_PER_FRAME);
+	    
+	    saveScreenshotToFile(file, WIDTH, HEIGHT);
+	}
     }
 
     /* gracefully close */

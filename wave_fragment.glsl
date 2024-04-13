@@ -43,29 +43,12 @@ void main()
     float bottom_pos = texture(old_pos, bottom).r;
     float left_pos = texture(old_pos, left).r;
     
-    new_acc = 0.97 * k * (top_pos + right_pos + bottom_pos + left_pos - 4 * my_old_pos);
+    new_acc = k * (1.0 - texture(obstacles, out_tex_coords).r) * (top_pos + right_pos + bottom_pos + left_pos - 4 * my_old_pos) - texture(obstacles, out_tex_coords).b * my_old_pos;
 
-
-    if (texture(sources, out_tex_coords).r > 0.5)
+    float source = texture(obstacles, out_tex_coords).g;
+    if (source > 0)
     {
-	if (time < pulse_time)
-	{
-	    new_pos = A * (sin(time));
-	    new_vel = my_old_vel;
-	    new_acc = my_old_acc;
-	}
-	else
-	{
-	    new_pos = 0;
-	    new_vel = my_old_vel;
-	    new_acc = my_old_acc;
-	}
+	new_pos = A * sin(8 * source * time);
     }
 
-    if (texture(obstacles, out_tex_coords).r > 0.5)
-    {
-	new_pos = 0;
-	new_vel = my_old_vel;
-	new_acc = my_old_acc;
-    }
 }
