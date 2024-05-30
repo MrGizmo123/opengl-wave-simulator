@@ -13,9 +13,14 @@
 
 #define VERTEX_SHADER "vertex.glsl"
 #define FRAGMENT_SHADER "fragment.glsl"
+#define COMPUTE_SHADER "compute.glsl"
 
-#define WIDTH 1024
+#define WIDTH 512
 #define HEIGHT 1024
+
+#define TEX_WIDTH 256
+#define TEX_HEIGHT 256
+#define TEX_DEPTH 256
 
 #define CYCLES_PER_FRAME 50
 #define SHOULD_ANIMATE 0
@@ -23,14 +28,19 @@
 unsigned int vertex_shader;
 unsigned int fragment_shader;
 
+unsigned int compute_shader;
+
+/* used to initialize textures to 0 */
+float* empty;
+
 float vertices[] = {
     // first triangle
      1.0f,  1.0f, 0.0f,  // top right
-     1.0f, -1.0f, 0.0f,  // bottom right
+     1.0f, 0.0f, 0.0f,  // bottom right
     -1.0f,  1.0f, 0.0f,  // top left 
     // second triangle
-     1.0f, -1.0f, 0.0f,  // bottom right
-    -1.0f, -1.0f, 0.0f,  // bottom left
+     1.0f, 0.0f, 0.0f,  // bottom right
+    -1.0f, 0.0f, 0.0f,  // bottom left
     -1.0f,  1.0f, 0.0f   // top left
 };
 
@@ -89,9 +99,8 @@ MessageCallback( GLenum source,
             type, severity, message );
 }
 
-struct FBO
+struct TexBundle
 {
-    unsigned int fbo_id;
     unsigned int pos_texture;
     unsigned int vel_texture;
     unsigned int acc_texture;
@@ -150,8 +159,8 @@ void compile_shaders(unsigned int* shader_program,
     fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
 
     /* set the source code */
-    glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
-    glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
+    glShaderSource(vertex_shader, 1, (const GLchar * const*)&vertex_shader_source, NULL);
+    glShaderSource(fragment_shader, 1, (const GLchar * const*)&fragment_shader_source, NULL);
    
 
     int success;
@@ -197,6 +206,62 @@ void compile_shaders(unsigned int* shader_program,
     if (!success) {
 	glGetProgramInfoLog(*shader_program, 512, NULL, error_message);
 	printf("Error when validating shaders \n %s \n", error_message);
+    }
+    
+}
+
+void compile_compute_shader(unsigned int* shader_program,
+			    char* compute_file)
+{
+    char* compute_shader_source;
+
+    /* read shader source code */
+    compute_shader_source = read_file(compute_file);
+
+    /* printf("vertex shader: %s \n", vertex_shader_source); */
+    /* printf("fragment shader: %s \n", fragment_shader_source); */
+
+    /* create shader objects */
+    compute_shader = glCreateShader(GL_COMPUTE_SHADER);
+
+    /* set the source code */
+    glShaderSource(compute_shader, 1, (const GLchar * const*)&compute_shader_source, NULL);
+   
+
+    int success;
+    char error_message[512];
+
+    /* compile both shaders and check for errors, report if any error */
+
+    glCompileShader(compute_shader); 
+    glGetShaderiv(compute_shader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+	glGetShaderInfoLog(compute_shader, 512, NULL, error_message);
+	printf("Error when compiling compute shader \n %s \n", error_message);
+    }
+    
+    /* create shader program */
+    *shader_program = glCreateProgram();
+
+    /* attach the vertex and fragment shader to it */
+    glAttachShader(*shader_program, compute_shader);
+
+    /* Link the program */
+    glLinkProgram(*shader_program);
+
+    /* check for errors in linking and report if necessary */
+    glGetProgramiv(*shader_program, GL_LINK_STATUS, &success);
+    if(!success) {
+	glGetProgramInfoLog(*shader_program, 512, NULL, error_message);
+	printf("Error when linking compute shader \n %s \n", error_message);
+    }
+
+    glValidateProgram(*shader_program);
+    glGetProgramiv(*shader_program, GL_VALIDATE_STATUS, &success);
+    if (!success) {
+	glGetProgramInfoLog(*shader_program, 512, NULL, error_message);
+	printf("Error when validating compute shaders \n %s \n", error_message);
     }
     
 }
@@ -271,112 +336,62 @@ void generate_empty_float_texture(unsigned int* texture)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void generate_fbo(struct FBO* fbo)
+void generate_empty_float_texture_3D(unsigned int* texture)
 {
-    glGenFramebuffers(1, &fbo->fbo_id);
+    glGenTextures(1, texture);
+    glBindTexture(GL_TEXTURE_3D, *texture);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo_id);
+    glTexImage3D(
+	GL_TEXTURE_3D,
+	0,
+	GL_R32F,
+	TEX_WIDTH,
+	TEX_HEIGHT,
+	TEX_DEPTH,
+	0,
+	GL_RED,
+	GL_FLOAT,
+	empty);
 
-    generate_empty_float_texture(&fbo->pos_texture);
-    generate_empty_float_texture(&fbo->vel_texture);
-    generate_empty_float_texture(&fbo->acc_texture);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-			   GL_COLOR_ATTACHMENT0,
-			   GL_TEXTURE_2D,
-			   fbo->pos_texture,
-			   0);
-    
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-			   GL_COLOR_ATTACHMENT1,
-			   GL_TEXTURE_2D,
-			   fbo->vel_texture,
-			   0);
-    
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-			   GL_COLOR_ATTACHMENT2,
-			   GL_TEXTURE_2D,
-			   fbo->acc_texture,
-			   0);
-
-    const unsigned int attachments[] = {
-	GL_COLOR_ATTACHMENT0,
-	GL_COLOR_ATTACHMENT1,
-	GL_COLOR_ATTACHMENT2
-    };
-    
-    glDrawBuffers(3, attachments);
-
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-    {
-	printf("Error in creating FBO\n");
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_3D, 0);
 }
 
-void bind_fbo_to_uniforms(struct FBO* fbo,
-			  unsigned int sources_texture,
-			  unsigned int obstacles_texture,
-			  unsigned int shader)
+void generate_tex_bundle(struct TexBundle* bundle)
 {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, fbo->pos_texture);
-
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, fbo->vel_texture);
-    
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, fbo->acc_texture);
-
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, sources_texture);
-
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, obstacles_texture);
-    
-    int old_pos_location = glGetUniformLocation(shader, "old_pos");
-    int old_vel_location = glGetUniformLocation(shader, "old_vel");
-    int old_acc_location = glGetUniformLocation(shader, "old_acc");
-    int sources_location = glGetUniformLocation(shader, "sources");
-    int obstacles_location = glGetUniformLocation(shader, "obstacles");
-    
-    glUniform1i(old_pos_location, 0);
-    glUniform1i(old_vel_location, 1);
-    glUniform1i(old_acc_location, 2);
-    glUniform1i(sources_location, 3);
-    glUniform1i(obstacles_location, 4);
+    generate_empty_float_texture_3D(&bundle->pos_texture);
+    generate_empty_float_texture_3D(&bundle->vel_texture);
+    generate_empty_float_texture_3D(&bundle->acc_texture);
 }
 
-void step(struct FBO* src,
-	  struct FBO* dest,
-	  unsigned int sources_texture,
-	  unsigned int obstacles_texture,
+void bind_tex_bundles(struct TexBundle* src)
+{
+
+    glBindImageTexture(0, src->pos_texture, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
+    glBindImageTexture(1, src->vel_texture, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
+    glBindImageTexture(2, src->acc_texture, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
+}
+
+void step(struct TexBundle* src,
 	  unsigned int shader,
-	  unsigned int vao,
 	  float timestep,
 	  float time)
 {
-    /* read from fbo1 write to fbo2 */
-    glBindFramebuffer(GL_FRAMEBUFFER, dest->fbo_id);
-	
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
     glUseProgram(shader);
 
-    bind_fbo_to_uniforms(src, sources_texture, obstacles_texture, shader);
+    bind_tex_bundles(src);
+
     glUniform1f(glGetUniformLocation(shader, "timestep"), timestep);
     glUniform1f(glGetUniformLocation(shader, "time"), time);
-    glUniform1i(glGetUniformLocation(shader, "size"), WIDTH);
+    glUniform1i(glGetUniformLocation(shader, "offset"), 1);
+    glUniform1i(glGetUniformLocation(shader, "width"), TEX_WIDTH);
 
-    
-    glBindVertexArray(vao);
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    glBindVertexArray(0);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDispatchCompute(TEX_WIDTH/8, TEX_HEIGHT/8, TEX_DEPTH/8);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
 }
 
 void saveScreenshotToFile(char* filename, int windowWidth, int windowHeight) {    
@@ -399,6 +414,8 @@ void saveScreenshotToFile(char* filename, int windowWidth, int windowHeight) {
 
 int main(int argc, char** argv)
 {
+
+    empty = calloc(TEX_WIDTH * TEX_HEIGHT * TEX_DEPTH, 4);
     
     /* initialize glfw */
     if (!glfwInit())
@@ -408,7 +425,7 @@ int main(int argc, char** argv)
 
     /* create window */
     
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window = glfwCreateWindow(WIDTH,
@@ -439,24 +456,34 @@ int main(int argc, char** argv)
     //glDebugMessageCallback( MessageCallback, 0 );
 
     
-    //glEnable(GL_TEXTURE_2D);
+    //glEnable(GL_TEXTURE_3D);
     glEnable (GL_BLEND);
+    
 
 
     /* texture code */
 
-    unsigned int sources_texture;
-    load_texture(&sources_texture, "sources.png");
+    /* unsigned int sources_texture; */
+    /* load_texture(&sources_texture, "sources.png"); */
 
-    unsigned int obstacles_texture;
-    load_texture(&obstacles_texture, "obstacles.png");
+    /* unsigned int obstacles_texture; */
+    /* load_texture(&obstacles_texture, "obstacles.png"); */
 
     
     /* vao/vbo code */
 
     struct VAO vao;
     generate_rect(&vao);
+    /* testure code */
+    unsigned int positions;
+    generate_empty_float_texture_3D(&positions);
     
+
+    unsigned int velocities;
+    generate_empty_float_texture_3D(&velocities);
+
+    unsigned int accelerations;
+    generate_empty_float_texture_3D(&accelerations);
 
     /* shader code */
 
@@ -469,67 +496,77 @@ int main(int argc, char** argv)
     glUniform1i(glGetUniformLocation(quad_shader, "size"), WIDTH);
 
     unsigned int wave_shader;
-    compile_shaders(&wave_shader,
-		    "vertex.glsl",
-		    "wave_fragment.glsl");
+    compile_compute_shader(&wave_shader, COMPUTE_SHADER);
 
     glUseProgram(wave_shader);
-    glUniform1i(glGetUniformLocation(wave_shader, "size"), WIDTH);
-
-    /* fbo code */
-    struct FBO fbo1;
-    generate_fbo(&fbo1);
-
-    struct FBO fbo2;
-    generate_fbo(&fbo2);
+    glUniform1i(glGetUniformLocation(wave_shader, "width"), TEX_WIDTH);
     
     /* time code */
 
     float time = 0.0f;
-    float timestep = 0.001f;
+    float timestep = 0.0005f;
 
     int frames = 0;
+
+    /* int max_work_groups; */
+    /* int max_wg_size; */
+    /* int max_wg_invocations; */
+
+    /* glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &max_work_groups); */
+    /* glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &max_wg_size); */
+    /* glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, 0, &max_wg_invocations); */
+    
+    /* printf("Max work groups: %d\n", max_work_groups); */
+    /* printf("Max work group size: %d\n", max_wg_size); */
+    /* printf("Max work group invocations: %d\n", max_wg_invocations); */
+
+    struct TexBundle b1;
+    generate_tex_bundle(&b1);
+    
+    struct TexBundle b2;
+    generate_tex_bundle(&b2);
+    
     
     /* main loop */
     
     while (!glfwWindowShouldClose(window))
     {
 	
-	step(&fbo1,
-	     &fbo2,
-	     sources_texture,
-	     obstacles_texture,
+	step(&b1,
 	     wave_shader,
-	     vao.vao_id,
 	     timestep,
 	     time);
-
-	step(&fbo2,
-	     &fbo1,
-	     sources_texture,
-	     obstacles_texture,
-	     wave_shader,
-	     vao.vao_id,
-	     timestep,
-	     time);
+	
+	/* step(&b2, */
+	/*      &b1, */
+	/*      wave_shader, */
+	/*      timestep, */
+	/*      time); */
 
 	glClearColor(0.6f, 0.2f, 0.2f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	
+        
+
+
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fbo1.pos_texture);
-
-        glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacles_texture);
-
-	glUseProgram(quad_shader);
-
-	glUniform1i(glGetUniformLocation(quad_shader, "image"), 0);
-	glUniform1i(glGetUniformLocation(quad_shader, "scene"), 1);
+	glBindTexture(GL_TEXTURE_3D, b1.pos_texture);
 	
 	glBindVertexArray(vao.vao_id);
-	
+
+	glUseProgram(quad_shader);
+	glUniform1f(glGetUniformLocation(quad_shader, "z_slice"), 0.3);
+	glUniform1f(glGetUniformLocation(quad_shader, "y_slice"), 0.5);
+
+	/* draw z slice (transverse section) */
+	glUniform1i(glGetUniformLocation(quad_shader, "view"), 1);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	/* draw y slice (longitudinal section) */
+	glUniform1i(glGetUniformLocation(quad_shader, "view"), 2);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glBindTexture(GL_TEXTURE_3D, 0);
 	
 	
 	glfwSwapBuffers(window);
@@ -550,4 +587,6 @@ int main(int argc, char** argv)
     /* gracefully close */
 
     glfwTerminate();
+
+    free(empty);
 }
