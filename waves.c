@@ -150,8 +150,8 @@ void compile_shaders(unsigned int* shader_program,
     fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
 
     /* set the source code */
-    glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
-    glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
+    glShaderSource(vertex_shader, 1, (const GLchar* const*)&vertex_shader_source, NULL);
+    glShaderSource(fragment_shader, 1, (const GLchar* const*)&fragment_shader_source, NULL);
    
 
     int success;
