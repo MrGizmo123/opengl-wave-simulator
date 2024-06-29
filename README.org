@@ -8,9 +8,7 @@ This program can be used to see how waves behave in 2D space
 + It simulates waves by solving the differential equation for 2D scalar
   waves
 
-  $
-  \frac{\partial^2z}{{\partial t}^2} = c^2 \nabla^2 z
-  $
+  $\frac{\partial^2z}{{\partial t}^2} = c^2 \nabla^2 z$
   
 + It can accurately simulate the following
   - Propagation
