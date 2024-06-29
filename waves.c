@@ -192,6 +192,7 @@ void compile_shaders(unsigned int* shader_program,
 	printf("Error when linking shaders \n %s \n", error_message);
     }
 
+    /* check for errors by validation and report if necessary */
     glValidateProgram(*shader_program);
     glGetProgramiv(*shader_program, GL_VALIDATE_STATUS, &success);
     if (!success) {
@@ -212,8 +213,8 @@ void load_texture(unsigned int* texture, char* path)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); 
     
     int width;
     int height;
@@ -241,6 +242,7 @@ void load_texture(unsigned int* texture, char* path)
     {
 	printf("Error loading texture\n");
     }
+    
     glBindTexture(GL_TEXTURE_2D, 0);
 
     /* free the data */
@@ -263,8 +265,8 @@ void generate_empty_float_texture(unsigned int* texture)
 	GL_FLOAT,
 	NULL);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
