@@ -1,0 +1,25 @@
+#+title: GPU accelerated Wave Simulator
+#+author: liquidcat
+
+* Quick Intro
+
+This program can be used to see how waves behave in 2D space
+
++ It simulates waves by solving the differential equation for 2D scalar
+  waves
+  
++ It can accurately simulate the following
+  - Propagation
+  - Reflection
+  - Refraction
+  - Diffraction
+  - Interference
+  - Total Internal Reflection
+    
++ Easy to use: you can paint the sources and obstacles, refractive
+  indices of parts of the domain in your favourite image editor
+  - For each pixel
+  - The red component indicates $\sqrt{1-refractive index}$
+  - If the green component is non-zero it indicates a source at that
+    point whose frequency is proportional to the magnitude of the
+    green component (a value of 12 is recommended for sources)
